@@ -68,3 +68,23 @@ function record(correct){if(!lastTranscript){setStatus('먼저 마이크로 영�
 $('recordSuccess').addEventListener('click',()=>record(true));$('recordFail').addEventListener('click',()=>record(false));$('resetLog').addEventListener('click',()=>{logs=[];refreshLogs()});
 $('exportLog').addEventListener('click',()=>{if(!logs.length){setStatus('저장할 기록이 없습니다.',true);return}const h=['timestamp','volume','correct','seconds','text','chapter','paragraph'];const csv='\ufeff'+[h.join(','),...logs.map(r=>h.map(k=>'"'+String(r[k]??'').replaceAll('"','""')+'"').join(','))].join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const a=document.createElement('a');a.href=url;a.download='voice-test-results.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),3000)});
 (async()=>{setupSpeech();try{const saved=await cachedRead();if(saved?.data)setRows(saved.data,(saved.label||'이전에 저장한 DB')+' (기기 저장본)');else if(recognition)setStatus('개인 DB 파일을 선택하거나 샘플 체험을 누르세요.')}catch(e){if(recognition)setStatus('개인 DB를 선택해 주세요. 브라우저에 저장하지 못할 수 있습니다.')}refreshLogs()})();
+
+
+// Read-only bridge for the optional continuous listening module.
+// Matches recorded English to the existing private English–Korean rows.
+window.evenContinuousBridge = {
+  hasDb: () => rows.length > 0,
+  isOnceListening: () => listening,
+  lookup: (phrase) => {
+    $('q').value = phrase;
+    $('heard').textContent = '연속 듣기 인식: ' + phrase;
+    lastTranscript = phrase;
+    runSearch();
+    return {
+      matched: ranked.length > 0,
+      reference: $('reference').textContent,
+      confidence: $('confidence').textContent,
+      translation: active?.ko || ''
+    };
+  }
+};
