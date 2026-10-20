@@ -91,7 +91,7 @@ export function assess(results, query) {
   const wordsCount=words(query).length;
   const exact=['exact','compact'].includes(first.kind);
   const duplicate=second && ['exact','compact'].includes(second.kind) && gap < 160;
-  if (exact && !duplicate && (gap >= 80 || !second)) return { state:'exact', label:'원문 구절 일치', confident:true };
+  if (exact && wordsCount >= 4 && !duplicate && (gap >= 80 || !second)) return { state:'exact', label:'원문 구절 일치', confident:true };
   if (exact && duplicate) return { state:'ambiguous', label:'여러 문단에 같은 구절', confident:false };
   if (first.kind === 'ordered' && wordsCount >= 5 && first.coverage >= 0.76 && first.run >= 0.38 && first.score >= 760 && gap >= 110) {
     return { state:'likely', label:'유력한 후보 · 확인 필요', confident:false };
