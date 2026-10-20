@@ -1,4 +1,4 @@
-import { search, context, warmSearch } from './matcher.mjs?v=4';
+import { search, assess, context, warmSearch } from './matcher.mjs?v=5';
 const $=id=>document.getElementById(id);
 let rows=[], ranked=[], active=null, recognition=null, listening=false;
 let startedAt=0, lastDuration=null, lastTranscript='', lastMatched=false, logs=[], finalReceived=false;
@@ -44,11 +44,36 @@ function setActive(row,meta=''){
  $('english').textContent=row.en;
 }
 function runSearch(){
- const q=$('q').value.trim();if(!q||!rows.length){ranked=[];lastMatched=false;setActive(null);$('confidence').textContent=q?'미검색':'미검색';$('alternatives').replaceChildren();return}
- ranked=search(rows,q,{chapter:$('chapter').value,limit:5});lastMatched=ranked.length>0;
- $('confidence').textContent=ranked.length?(ranked[0].score>=800?'원문 일치':ranked[0].score>=300?'유사 표현':'확인 필요'):'검색 결과 없음';
- setActive(ranked[0]?.row||null);
- const alt=$('alternatives');alt.replaceChildren();ranked.forEach((r,i)=>{const b=document.createElement('button');b.type='button';b.textContent=`${i+1}순위 · ${r.row.chapter}장 #${r.row.n}`;if(i===0)b.classList.add('active');b.addEventListener('click',()=>{setActive(r.row);alt.querySelectorAll('button').forEach(x=>x.classList.remove('active'));b.classList.add('active')});alt.append(b)});
+ const q=$('q').value.trim();
+ const alt=$('alternatives');
+ if(!q||!rows.length){
+   ranked=[];lastMatched=false;setActive(null);
+   $('confidence').textContent='미검색';alt.replaceChildren();return;
+ }
+ ranked=search(rows,q,{chapter:$('chapter').value,limit:5});
+ const verdict=assess(ranked,q);
+ lastMatched=verdict.confident;
+ $('confidence').textContent=verdict.label;
+ const canShow=verdict.state==='exact'||verdict.state==='likely';
+ setActive(canShow ? ranked[0]?.row||null : null);
+ if(verdict.state==='ambiguous'){
+   $('reference').textContent='자동 선택 보류 · 후보를 확인하세요';
+   $('translation').textContent='비슷한 문단이 여럿 있습니다. 영어 구절을 조금 더 길게 말하거나 아래 후보를 선택해 주세요.';
+ }
+ alt.replaceChildren();
+ ranked.forEach((r,i)=>{
+   const b=document.createElement('button');
+   b.type='button';
+   b.textContent=(i+1)+'순위 · '+r.row.chapter+'장 #'+r.row.n+' · '+r.row.en.slice(0,66)+(r.row.en.length>66?'…':'');
+   if(canShow&&i===0)b.classList.add('active');
+   b.addEventListener('click',()=>{
+     setActive(r.row,'직접 선택한 후보');
+     $('confidence').textContent='직접 선택한 후보 · 원문 확인';
+     alt.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+     b.classList.add('active');
+   });
+   alt.append(b);
+ });
 }
 function onRecognized(s,interim=false){
  $('heard').textContent=(interim?'인식 중: ':'인식 완료: ')+s;
@@ -102,17 +127,18 @@ window.evenContinuousBridge = {
     const start = performance.now();
     if (!rows.length) return { matched: false, searchMs: 0 };
     if (preview) {
-      const candidates = search(rows, phrase, { chapter: $('chapter').value, limit: 2 });
+      const candidates = search(rows, phrase, { chapter: $('chapter').value, limit: 3 });
       const ms = performance.now() - start;
       const best = candidates[0];
-      // Only show a strong, unambiguous match while the person is still speaking.
-      if (!best || best.score < 800 || (candidates[1] && best.score - candidates[1].score < 15)) {
-        return { matched: false, searchMs: ms, preview: true };
+      const verdict=assess(candidates,phrase);
+      // Never flash a guessed paragraph while speech is still interim.
+      if (!best || verdict.state!=='exact') {
+        return { matched: false, uncertain: verdict.state==='ambiguous', searchMs: ms, preview: true };
       }
       return {
         matched: true, preview: true, searchMs: ms,
         reference: best.row.chapter + '장 · ' + (best.row.section || '서론') + ' · 문단 #' + best.row.n,
-        confidence: '임시 후보', translation: best.row.ko
+        confidence: '원문 구절 일치 · 임시 인식', translation: best.row.ko
       };
     }
     $('q').value = phrase;
@@ -123,7 +149,7 @@ window.evenContinuousBridge = {
     runSearch();
     const ms = performance.now() - start;
     return {
-      matched: ranked.length > 0, searchMs: ms, preview: false,
+      matched: !!active, uncertain: !!ranked.length && !active, searchMs: ms, preview: false,
       reference: $('reference').textContent,
       confidence: $('confidence').textContent,
       translation: active?.ko || ''
