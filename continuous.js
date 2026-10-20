@@ -73,8 +73,8 @@ function handlePhrase(phrase) {
   }
   preview.hidden = false;
   if (!response.matched) {
-    previewHeading.textContent = '일치하는 문단을 찾지 못했습니다';
-    previewBody.textContent = '영어 구절을 조금 더 길게 말해보세요.';
+    previewHeading.textContent = response.uncertain ? '후보가 여러 개입니다' : '일치하는 문단을 찾지 못했습니다';
+    previewBody.textContent = response.uncertain ? '오른쪽 후보 대신 원문을 조금 더 길게 읽어보세요. 현재 결과는 자동 확정하지 않았습니다.' : '영어 구절을 조금 더 길게 말해보세요.';
     show('계속 듣는 중 · 다음 구절을 읽어주세요.');
     return;
   }
