@@ -22,6 +22,19 @@ function setRows(data,label='개인 자료'){
  const chapters=[...new Set(rows.map(r=>r.chapter))].sort();$('chapter').replaceChildren(new Option('전체 장','all'),...chapters.map(x=>new Option(x==='sample'?'샘플':x+'장',x)));
  $('db-chip').textContent=rows.length.toLocaleString('ko-KR')+'개';$('dbName').textContent=label+' · '+rows.length.toLocaleString('ko-KR')+'개 문단';
  setStatus('준비 완료. 영어 문장 5~10단어를 말하거나 입력해 보세요.');runSearch();
+ const prompts=$('voicePrompts');
+ if(prompts){
+   prompts.replaceChildren();
+   const c4=rows.filter(x=>x.chapter==='4'&&x.en.split(/\\s+/).length>9);
+   const c3=rows.filter(x=>x.chapter==='3'&&x.en.split(/\\s+/).length>9);
+   const chosen=[c4[0],c4[Math.min(15,c4.length-1)],c3[0]].filter((x,i,a)=>x&&a.indexOf(x)===i);
+   for(const [i,row] of chosen.entries()){
+     const p=document.createElement('p');
+     p.textContent=(i+1)+' · '+row.en.trim().split(/\\s+/).slice(0,10).join(' ');
+     prompts.append(p);
+   }
+   if(!chosen.length)prompts.textContent='영어 원문이 10단어 이상인 문단을 찾지 못했습니다.';
+ }
 }
 function setActive(row,meta=''){
  active=row;$('previous').disabled=!row;$('next').disabled=!row;
