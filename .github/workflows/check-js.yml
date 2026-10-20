@@ -1,0 +1,22 @@
+name: Check speech search application
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: |
+          node --check continuous.js
+          node --check matcher.mjs
+          node --input-type=module --check < app.js
+      - name: Bilingual search unit tests
+        run: node --test tests/matcher.test.mjs
