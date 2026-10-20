@@ -16,6 +16,11 @@ let heardInSession = false;
 let seenFinals = new Map();
 let lastPhrase = '';
 let lastPhraseTime = 0;
+let previewTimer = null;
+let previousPreview = '';
+function clearPreviewTimer() {
+  if (previewTimer !== null) { clearTimeout(previewTimer); previewTimer = null; }
+}
 
 function show(message, isWarning = false) {
   indicator.textContent = message;
@@ -35,6 +40,7 @@ function clearRetry() {
 }
 function halt(message, isWarning = false) {
   wanted = false;
+  clearPreviewTimer();
   clearRetry();
   const old = recognizer;
   recognizer = null;
@@ -49,6 +55,7 @@ function halt(message, isWarning = false) {
   show(message, isWarning);
 }
 function handlePhrase(phrase) {
+  clearPreviewTimer();
   phrase = phrase.trim();
   const wordCount = phrase.split(/\s+/).filter(Boolean).length;
   if (wordCount < 3) {
@@ -59,7 +66,7 @@ function handlePhrase(phrase) {
   if (phrase.toLowerCase() === lastPhrase.toLowerCase() && now - lastPhraseTime < 1600) return;
   lastPhrase = phrase;
   lastPhraseTime = now;
-  const response = window.evenContinuousBridge?.lookup(phrase);
+  const response = window.evenContinuousBridge?.lookup(phrase, { preview: false });
   if (!response) {
     halt('검색기 연결을 찾지 못했습니다. Safari 새로고침 후 다시 실행하세요.', true);
     return;
@@ -73,7 +80,24 @@ function handlePhrase(phrase) {
   }
   previewHeading.textContent = response.reference + ' · ' + response.confidence;
   previewBody.textContent = response.translation;
+  byId('autoSpeed').textContent = '문장 인식 후 검색 처리: ' + response.searchMs.toFixed(1) + 'ms (음성 인식 대기시간은 제외)';
   show('계속 듣는 중 · 문장이 끝날 때마다 자동 검색합니다.');
+}
+function schedulePreview(phrase) {
+  if (!wanted || phrase.split(/\s+/).filter(Boolean).length < 5) return;
+  clearPreviewTimer();
+  if (phrase === previousPreview) return;
+  previewTimer = setTimeout(() => {
+    previewTimer = null;
+    if (!wanted || document.visibilityState === 'hidden') return;
+    previousPreview = phrase;
+    const result = window.evenContinuousBridge?.lookup(phrase, { preview: true });
+    if (!result?.matched) return;
+    preview.hidden = false;
+    previewHeading.textContent = result.reference + ' · ' + result.confidence;
+    previewBody.textContent = result.translation;
+    byId('autoSpeed').textContent = '임시 후보 검색: ' + result.searchMs.toFixed(1) + 'ms · 음성 인식 확정 전';
+  }, 170);
 }
 function createRecognizer() {
   const rec = new SR();
@@ -116,11 +140,13 @@ function startSession() {
       }
     }
     if (finalPhrases.length) {
+      clearPreviewTimer();
       heardInSession = true;
       failures = 0;
       for (const phrase of finalPhrases) handlePhrase(phrase);
     } else if (partial) {
       show('인식 중: ' + partial.slice(0, 90));
+      schedulePreview(partial);
     }
   };
   rec.onerror = event => {
@@ -138,6 +164,7 @@ function startSession() {
     if (!wanted || recognizer !== rec) return;
     running = false;
     recognizer = null;
+    clearPreviewTimer();
     if (document.visibilityState === 'hidden') {
       halt('화면이 잠기거나 Safari를 벗어나서 듣기를 중단했습니다.', true);
       return;
@@ -183,6 +210,8 @@ button.addEventListener('click', () => {
   failures = 0;
   lastPhrase = '';
   lastPhraseTime = 0;
+  previousPreview = '';
+  byId('autoSpeed').textContent = '마지막 검색 속도: 측정 전';
   paint();
   show('마이크 연결 요청 중…');
   startSession();
