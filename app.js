@@ -1,4 +1,4 @@
-import { search, context, warmSearch } from './matcher.mjs';
+import { search, context, warmSearch } from './matcher.mjs?v=4';
 const $=id=>document.getElementById(id);
 let rows=[], ranked=[], active=null, recognition=null, listening=false;
 let startedAt=0, lastDuration=null, lastTranscript='', lastMatched=false, logs=[], finalReceived=false;
