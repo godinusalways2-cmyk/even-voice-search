@@ -17,11 +17,12 @@ jobs:
         run: |
           node --check continuous.js
           node --check matcher.mjs
+          node --check short-search.mjs
           node --check whisper-lab.mjs
           node --check zip-store.mjs
           node --input-type=module --check < app.js
       - name: Bilingual search unit tests
-        run: node --test tests/matcher.test.mjs tests/zip-store.test.mjs
+        run: node --test tests/matcher.test.mjs tests/zip-store.test.mjs tests/short-search.test.mjs
       - name: Check Python training tools syntax
         run: |
           python -m py_compile training/prepare_dataset.py training/evaluate_baseline.py
