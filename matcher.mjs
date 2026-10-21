@@ -15,6 +15,7 @@ function indexed(row) {
     const en = normalize(row.en);
     doc = { en, ko: normalize(row.ko), compact: en.replace(/\s+/g,''),
       words: en.split(' ').filter(Boolean) };
+    doc.termSet=new Set(doc.words);
     docCache.set(row, doc);
   }
   return doc;
@@ -69,6 +70,19 @@ function aligned(query, document, corpus) {
   const q=query.words,d=document.words;
   const m=q.length,n=d.length;
   if(m<4||!n)return null;
+  // Fast candidate screening: two meaningful words must plausibly anchor the phrase.
+  const keyWords=[...new Set(q.filter(t=>!common.has(t)&&t.length>2))];
+  if(keyWords.length<2)return null;
+  let anchors=0;
+  for(const w of keyWords)if(document.termSet.has(w))anchors++;
+  if(anchors<2){
+    for(const w of keyWords){
+      if(document.termSet.has(w))continue;
+      if(document.words.some(t=>similarity(w,t)>=0.6))anchors++;
+      if(anchors>=2)break;
+    }
+    if(anchors<2)return null;
+  }
   const w=q.map(t=>termWeight(t,corpus));
   const total=w.reduce((a,b)=>a+b,0);
   let prior=new Float32Array(n+1);
