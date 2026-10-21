@@ -54,7 +54,7 @@ function halt(message, isWarning = false) {
   paint();
   show(message, isWarning);
 }
-function handlePhrase(phrase) {
+function handlePhrase(phrase, alternatives = []) {
   clearPreviewTimer();
   phrase = phrase.trim();
   const wordCount = phrase.split(/\s+/).filter(Boolean).length;
@@ -66,7 +66,7 @@ function handlePhrase(phrase) {
   if (phrase.toLowerCase() === lastPhrase.toLowerCase() && now - lastPhraseTime < 1600) return;
   lastPhrase = phrase;
   lastPhraseTime = now;
-  const response = window.evenContinuousBridge?.lookup(phrase, { preview: false });
+  const response = window.evenContinuousBridge?.lookup(phrase, { preview: false, alternatives });
   if (!response) {
     halt('검색기 연결을 찾지 못했습니다. Safari 새로고침 후 다시 실행하세요.', true);
     return;
@@ -104,7 +104,7 @@ function createRecognizer() {
   rec.lang = 'en-US';
   rec.continuous = true;
   rec.interimResults = true;
-  rec.maxAlternatives = 1;
+  rec.maxAlternatives = 3; // Browser may return fewer; fallback is always the first.
   return rec;
 }
 function startSession() {
@@ -133,7 +133,8 @@ function startSession() {
       if (item.isFinal) {
         if (seenFinals.get(i) !== text) {
           seenFinals.set(i, text);
-          finalPhrases.push(text);
+          const variants=Array.from(item).map(a=>a?.transcript?.trim()).filter(Boolean);
+          finalPhrases.push({ text, variants });
         }
       } else {
         partial += (partial ? ' ' : '') + text;
@@ -143,7 +144,7 @@ function startSession() {
       clearPreviewTimer();
       heardInSession = true;
       failures = 0;
-      for (const phrase of finalPhrases) handlePhrase(phrase);
+      for (const phrase of finalPhrases) handlePhrase(phrase.text, phrase.variants.slice(1));
     } else if (partial) {
       show('인식 중: ' + partial.slice(0, 90));
       schedulePreview(partial);
