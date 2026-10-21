@@ -1,4 +1,9 @@
-import { search, searchSpeech, assess, context, warmSearch } from './matcher.mjs?v=6';
+import { search, searchSpeech, assess, context, warmSearch } from './matcher.mjs?v=8';
+import {shortSearch, shortSpeechSearch, shortAssessment, warmShort} from './short-search.mjs?v=8';
+const shortMode=q=>{const text=String(q||'').trim();const count=text.split(/\s+/).filter(Boolean).length;return count>=2&&count<=5&&!/[가-힣]/.test(text)};
+const queryRank=(data,q,chapter)=>shortMode(q)?shortSearch(data,q,{chapter,limit:5}):search(data,q,{chapter,limit:5});
+const voiceRank=(data,phrases,chapter)=>shortMode(phrases[0])?shortSpeechSearch(data,phrases,{chapter,limit:5}):searchSpeech(data,phrases,{chapter,limit:5});
+const verdictFor=(results,q)=>results[0]?.kind?.startsWith('short')?shortAssessment(results,q):assess(results,q);
 const $=id=>document.getElementById(id);
 let rows=[], ranked=[], active=null, recognition=null, listening=false;
 let startedAt=0, lastDuration=null, lastTranscript='', lastMatched=false, logs=[], finalReceived=false;
@@ -19,10 +24,10 @@ async function cachedClear(){const {store,db,tx}=await getStore('readwrite');ret
 function setRows(data,label='개인 자료'){
  if(!Array.isArray(data)||!data.length||data.length>10000||data.some(x=>!x||typeof x.en!=='string'||typeof x.ko!=='string'))throw Error('영어(en)·한국어(ko) 쌍이 포함된 JSON 배열이어야 합니다.');
  rows=data.map((x,i)=>({id:String(x.id??'para-'+i),chapter:String(x.chapter??'미지정'),en:x.en,ko:x.ko,section:String(x.section??''),n:Number(x.n??i+1),heading:Boolean(x.heading)}));
- warmSearch(rows);
+ warmSearch(rows);warmShort(rows);
  const chapters=[...new Set(rows.map(r=>r.chapter))].sort();$('chapter').replaceChildren(new Option('전체 장','all'),...chapters.map(x=>new Option(x==='sample'?'샘플':x+'장',x)));
  $('db-chip').textContent=rows.length.toLocaleString('ko-KR')+'개';$('dbName').textContent=label+' · '+rows.length.toLocaleString('ko-KR')+'개 문단';
- setStatus('준비 완료. 영어 문장 5~10단어를 말하거나 입력해 보세요.');runSearch();
+ setStatus('준비 완료. 영어 3~4단어부터 말하거나 입력해 보세요.');runSearch();
  const prompts=$('voicePrompts');
  if(prompts){
    prompts.replaceChildren();
@@ -31,7 +36,7 @@ function setRows(data,label='개인 자료'){
    const chosen=[c4[0],c4[Math.min(15,c4.length-1)],c3[0]].filter((x,i,a)=>x&&a.indexOf(x)===i);
    for(const [i,row] of chosen.entries()){
      const p=document.createElement('p');
-     p.textContent=(i+1)+' · '+row.en.trim().split(/\s+/).slice(0,10).join(' ');
+     p.textContent=(i+1)+' · '+row.en.trim().split(/\s+/).slice(2,6).join(' ');
      prompts.append(p);
    }
    if(!chosen.length)prompts.textContent='영어 원문이 10단어 이상인 문단을 찾지 못했습니다.';
@@ -39,7 +44,7 @@ function setRows(data,label='개인 자료'){
 }
 function setActive(row,meta=''){
  active=row;$('previous').disabled=!row;$('next').disabled=!row;
- if(!row){$('reference').textContent='결과 없음';$('translation').textContent=rows.length?'검색어를 조금 더 길게 입력해 보세요.':'먼저 개인 DB를 불러오세요.';$('english').textContent='';return}
+ if(!row){$('reference').textContent='검색 후보 없음';$('translation').textContent=rows.length?'일치하는 구절을 아직 찾지 못했습니다. 다른 영어 단어 조합으로 검색해 보세요.':'먼저 개인 DB를 불러오세요.';$('english').textContent='';return}
  $('reference').textContent=`${row.chapter==='sample'?'샘플':row.chapter+'장'} · ${row.section||'서론'} · 문단 #${row.n}${meta?' · '+meta:''}`;
  $('translation').textContent=row.ko;
  $('english').textContent=row.en;
@@ -51,18 +56,21 @@ function runSearch(override=null, voiceQuery=null){
    ranked=[];lastMatched=false;setActive(null);
    $('confidence').textContent='미검색';alt.replaceChildren();return;
  }
- ranked=override ?? search(rows,q,{chapter:$('chapter').value,limit:5});
- const verdict=assess(ranked,q);
+ ranked=Array.isArray(override)?override:queryRank(rows,q,$('chapter').value);
+ const verdict=verdictFor(ranked,q);
+ const isShort=shortMode(q);
  lastMatched=verdict.confident;
  $('confidence').textContent=verdict.label;
- const canShow=verdict.state==='exact'||verdict.state==='likely';
+ const canShow=verdict.state==='exact'||verdict.state==='likely'||(isShort&&ranked.length>0);
  setActive(canShow ? ranked[0]?.row||null : null);
- if(verdict.state==='ambiguous'){
+ if(canShow&&isShort&&!verdict.confident)
+   $('reference').textContent+=' · 1순위 후보(미확정)';
+ else if(verdict.state==='ambiguous'){
    $('reference').textContent='자동 선택 보류 · 후보를 확인하세요';
-   $('translation').textContent='비슷한 문단이 여럿 있습니다. 영어 구절을 조금 더 길게 말하거나 아래 후보를 선택해 주세요.';
+   $('translation').textContent='후보가 비슷합니다. 아래 다른 후보를 함께 확인해 주세요.';
  }
  alt.replaceChildren();
- ranked.forEach((r,i)=>{
+ ranked.slice(0,5).forEach((r,i)=>{
    const b=document.createElement('button');
    b.type='button';
    b.textContent=(i+1)+'순위 · '+r.row.chapter+'장 #'+r.row.n+' · '+r.row.en.slice(0,66)+(r.row.en.length>66?'…':'');
@@ -82,7 +90,7 @@ function onRecognized(s,interim=false,alternatives=[]){
  lastTranscript=s;
  $('q').value=s;
  if(alternatives.length){
-   const result=searchSpeech(rows,[s,...alternatives],{chapter:$('chapter').value,limit:5});
+   const result=voiceRank(rows,[s,...alternatives],$('chapter').value);
    runSearch(result.results,result.selected||s);
    if(result.selected && result.selected!==s)
      $('heard').textContent='인식 완료: '+s+'\nDB와 비교한 다른 음성 후보: '+result.selected;
@@ -108,11 +116,11 @@ function setupSpeech(){
     onRecognized(final.trim(),false,alts);
   }else if(partial.trim())onRecognized(partial.trim(),true);
  };
- recognition.onend=()=>{listening=false;$('mic').classList.remove('recording');$('micLabel').textContent='마이크 눌러 말하기';$('micHint').textContent='영어 5~10단어부터 시험하세요';if(!finalReceived && !lastTranscript)setStatus('음성이 인식되지 않았습니다. 다시 시도해 보세요.',true)};
+ recognition.onend=()=>{listening=false;$('mic').classList.remove('recording');$('micLabel').textContent='마이크 눌러 말하기';$('micHint').textContent='영어 3~4단어부터 시험하세요';if(!finalReceived && !lastTranscript)setStatus('음성이 인식되지 않았습니다. 다시 시도해 보세요.',true)};
  recognition.onerror=e=>{setStatus(`음성 인식 오류(${e.error}). 권한·인터넷·브라우저를 확인하세요.`,true)};
 }
 $('mic').addEventListener('click',()=>{if(!recognition)return;if(listening){recognition.stop();return}if(!rows.length){setStatus('먼저 개인 DB를 불러오거나 샘플 체험을 누르세요.',true);return}lastTranscript='';lastDuration=null;$('latency').textContent='';$('heard').textContent='듣는 중…';startedAt=performance.now();try{recognition.start()}catch(e){setStatus(e.message,true)}});
-$('q').addEventListener('input',()=>{lastTranscript='';runSearch()});$('chapter').addEventListener('change',runSearch);
+$('q').addEventListener('input',()=>{lastTranscript='';runSearch()});$('chapter').addEventListener('change',()=>runSearch());
 $('clearSearch').addEventListener('click',()=>{$('q').value='';$('heard').textContent='검색어를 지웠습니다.';runSearch()});
 $('previous').addEventListener('click',()=>{const target=active&&context(rows,active,-1);if(target)setActive(target,'앞 문단')});
 $('next').addEventListener('click',()=>{const target=active&&context(rows,active,1);if(target)setActive(target,'다음 문단')});
@@ -140,25 +148,26 @@ $('exportLog').addEventListener('click',()=>{if(!logs.length){setStatus('저장�
 window.evenContinuousBridge = {
   hasDb: () => rows.length > 0,
   isOnceListening: () => listening,
+  choose: id => { const row=ranked.find(r=>r.row.id===id)?.row;if(!row)return null;setActive(row,'직접 선택한 후보');$('confidence').textContent='직접 선택한 후보';return {reference:$('reference').textContent,translation:row.ko}; },
   lookup: (phrase, { preview = false, alternatives = [] } = {}) => {
     const start = performance.now();
     if (!rows.length) return { matched: false, searchMs: 0 };
     if (preview) {
-      const candidates = search(rows, phrase, { chapter: $('chapter').value, limit: 3 });
+      const candidates = queryRank(rows, phrase, $('chapter').value);
       const ms = performance.now() - start;
       const best = candidates[0];
-      const verdict = assess(candidates, phrase);
+      const verdict = verdictFor(candidates, phrase);
       // Interim display must be an exact match; final recognition will re-rank.
-      if (!best || verdict.state !== 'exact')
+      if (!best || (verdict.state !== 'exact' && !(shortMode(phrase) && best.coverage >= 0.78)))
         return { matched: false, uncertain: verdict.state === 'ambiguous', searchMs: ms, preview: true };
       return {
         matched: true, preview: true, searchMs: ms,
         reference: best.row.chapter + '장 · ' + (best.row.section || '서론') + ' · 문단 #' + best.row.n,
-        confidence: '원문 구절 일치 · 임시 인식', translation: best.row.ko
+        confidence: verdict.state==='exact'?'원문 구절 일치 · 임시 인식':'임시 후보 · 확인 필요', translation: best.row.ko
       };
     }
     const distinct = [phrase, ...alternatives].filter(Boolean);
-    const found = searchSpeech(rows, distinct, { chapter: $('chapter').value, limit: 5 });
+    const found = voiceRank(rows, distinct, $('chapter').value);
     const selected = found.selected || phrase;
     $('q').value = phrase;
     $('heard').textContent = '인식한 영어: ' + phrase +
@@ -169,7 +178,7 @@ window.evenContinuousBridge = {
     $('latency').textContent = '';
     runSearch(found.results, selected);
     lastDiagnostics={options:distinct.join(' | '),candidates:ranked.slice(0,3).map(x=>x.row.id+':'+Math.round(x.score)).join(' | '),confidence:$('confidence').textContent};
-    const verdict = assess(found.results, selected);
+    const verdict = verdictFor(found.results, selected);
     const ms = performance.now() - start;
     const chosen = found.results[0];
     return {
@@ -179,7 +188,8 @@ window.evenContinuousBridge = {
       reference: $('reference').textContent,
       confidence: verdict.label + (selected !== phrase ? ' · 다른 인식 후보 사용' : ''),
       translation: active?.ko || '',
-      alternativesChecked: found.alternativeCount
+      alternativesChecked: found.alternativeCount,
+      choices: found.results.slice(0,3).map((c,i)=>({id:c.row.id,label:(i+1)+'순위 · '+c.row.chapter+'장 #'+c.row.n,translation:c.row.ko,reference:c.row.chapter+'장 · 문단 #'+c.row.n}))
     };
   }
 };
