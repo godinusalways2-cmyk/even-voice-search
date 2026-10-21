@@ -5,8 +5,9 @@ const DB_NAME='even-voice-bilingual-local-v1', STORE='private-text';
 const modes=['normal','soft','whisper'];
 const names={normal:'보통 목소리',soft:'작은 목소리',whisper:'속삭임'};
 let prompts=[],clips=new Map(),recorder=null,stream=null,recordStart=0;
-let recordingKey='',recordingPrompt=null,recordingMode='',chunks=[],limitTimer=null;
+let recordingKey='',recordingPrompt=null,recordingMode='',recordingIndex=0,chunks=[],limitTimer=null;
 let previousPreviewUrl=null;
+let currentData=null;
 const clean=text=>String(text||'').replace(/\s+/g,' ').trim();
 function status(text,error=false){$('labStatus').textContent=text;$('labStatus').classList.toggle('error',error);}
 function clipKey(mode,prompt){return mode+'|'+prompt.id;}
@@ -65,6 +66,7 @@ function installDb(data){
   if(clips.size)throw Error('녹음 자료가 있습니다. 먼저 ZIP으로 저장한 뒤 페이지를 새로 열어 주세요.');
   prompts=selectPrompt(data,Number($('promptCount').value));
   if(!prompts.length)throw Error('3·4장 영어 본문 문장을 선택할 수 없습니다.');
+  currentData=data;
   $('dataBadge').textContent='준비 완료';
   $('dataStatus').textContent='원본 '+data.length.toLocaleString('ko-KR')+'개에서 '+prompts.length+'개 영어 구절 선정 · 업로드 없음';
   populateSelect();
@@ -97,13 +99,9 @@ $('labJson').addEventListener('change',async e=>{
 });
 $('promptCount').addEventListener('change',async()=>{
   if(clips.size){status('녹음을 이미 시작했습니다. 자료를 먼저 내보낸 다음 문장 수를 변경하세요.',true);return;}
-  const current=$('labJson').files?.[0];
-  // The cached database can be reloaded, or an explicitly imported dataset remains in-memory below.
   if(currentData){prompts=selectPrompt(currentData,Number($('promptCount').value));populateSelect();}
 });
-let currentData=null;
-const oldInstall=installDb;
-installDb=function(data){const result=oldInstall(data);currentData=data;return result;};
+
 $('prompt').addEventListener('change',update);
 $('style').addEventListener('change',update);
 function chooseFormat(){
@@ -128,7 +126,7 @@ async function startRecord(){
       new MediaRecorder(stream,{audioBitsPerSecond:96000});
     const rec=recorder;
     recordingKey=clipKey($('style').value,prompt);
-    recordingPrompt=prompt;recordingMode=$('style').value;
+    recordingPrompt=prompt;recordingMode=$('style').value;recordingIndex=Number($('prompt').value)+1;
     chunks=[];recordStart=performance.now();
     const captureSettings=stream.getAudioTracks()[0]?.getSettings?.()||{};
     rec.ondataavailable=e=>{if(e.data?.size>0)chunks.push(e.data);};
@@ -145,7 +143,7 @@ async function startRecord(){
       const clip={
         id:recordingKey,prompt_id:recordingPrompt.id,chapter:recordingPrompt.chapter,
         section:recordingPrompt.section,expected_text:recordingPrompt.text,
-        promptIndex:Number($('prompt').value)+1,condition:recordingMode,
+        promptIndex:recordingIndex,condition:recordingMode,
         recorded_at:new Date().toISOString(),duration_ms:ms,
         mime_type:mime,file_extension:ext,recorder_settings:{
           echoCancellation:captureSettings.echoCancellation??null,
@@ -167,6 +165,7 @@ async function startRecord(){
     $('record').disabled=true;$('stop').disabled=false;
     $('style').disabled=true;$('prompt').disabled=true;
     status('● 녹음 중입니다. 영어를 읽고 녹음 종료를 누르세요.');
+    update();
     limitTimer=setTimeout(stopRecord,15000);
   }catch(err){
     clearTimer();endTracks();recorder=null;
@@ -182,6 +181,8 @@ function stopRecord(){
   $('record').textContent='● 녹음 시작';
   $('style').disabled=false;$('prompt').disabled=false;
   $('stop').disabled=true;
+  $('next').disabled=!!recorder;
+  $('download').disabled=!!recorder;
 }
 $('record').addEventListener('click',startRecord);
 $('stop').addEventListener('click',stopRecord);
