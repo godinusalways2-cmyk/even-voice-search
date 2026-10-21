@@ -1,4 +1,4 @@
-import { search, assess, context, warmSearch } from './matcher.mjs?v=5';
+import { search, searchSpeech, assess, context, warmSearch } from './matcher.mjs?v=6';
 const $=id=>document.getElementById(id);
 let rows=[], ranked=[], active=null, recognition=null, listening=false;
 let startedAt=0, lastDuration=null, lastTranscript='', lastMatched=false, logs=[], finalReceived=false;
@@ -43,14 +43,14 @@ function setActive(row,meta=''){
  $('translation').textContent=row.ko;
  $('english').textContent=row.en;
 }
-function runSearch(){
- const q=$('q').value.trim();
+function runSearch(override=null, voiceQuery=null){
+ const q=(voiceQuery ?? $('q').value).trim();
  const alt=$('alternatives');
  if(!q||!rows.length){
    ranked=[];lastMatched=false;setActive(null);
    $('confidence').textContent='미검색';alt.replaceChildren();return;
  }
- ranked=search(rows,q,{chapter:$('chapter').value,limit:5});
+ ranked=override ?? search(rows,q,{chapter:$('chapter').value,limit:5});
  const verdict=assess(ranked,q);
  lastMatched=verdict.confident;
  $('confidence').textContent=verdict.label;
@@ -123,36 +123,45 @@ $('exportLog').addEventListener('click',()=>{if(!logs.length){setStatus('저장�
 window.evenContinuousBridge = {
   hasDb: () => rows.length > 0,
   isOnceListening: () => listening,
-  lookup: (phrase, { preview = false } = {}) => {
+  lookup: (phrase, { preview = false, alternatives = [] } = {}) => {
     const start = performance.now();
     if (!rows.length) return { matched: false, searchMs: 0 };
     if (preview) {
       const candidates = search(rows, phrase, { chapter: $('chapter').value, limit: 3 });
       const ms = performance.now() - start;
       const best = candidates[0];
-      const verdict=assess(candidates,phrase);
-      // Never flash a guessed paragraph while speech is still interim.
-      if (!best || verdict.state!=='exact') {
-        return { matched: false, uncertain: verdict.state==='ambiguous', searchMs: ms, preview: true };
-      }
+      const verdict = assess(candidates, phrase);
+      // Interim display must be an exact match; final recognition will re-rank.
+      if (!best || verdict.state !== 'exact')
+        return { matched: false, uncertain: verdict.state === 'ambiguous', searchMs: ms, preview: true };
       return {
         matched: true, preview: true, searchMs: ms,
         reference: best.row.chapter + '장 · ' + (best.row.section || '서론') + ' · 문단 #' + best.row.n,
         confidence: '원문 구절 일치 · 임시 인식', translation: best.row.ko
       };
     }
+    const distinct = [phrase, ...alternatives].filter(Boolean);
+    const found = searchSpeech(rows, distinct, { chapter: $('chapter').value, limit: 5 });
+    const selected = found.selected || phrase;
     $('q').value = phrase;
-    $('heard').textContent = '연속 듣기 인식: ' + phrase;
+    $('heard').textContent = '인식한 영어: ' + phrase +
+      (selected !== phrase ? '\nDB 비교로 선택한 다른 음성 후보: ' + selected : '');
+    $('heard').style.whiteSpace = 'pre-line';
     lastTranscript = phrase;
-    lastDuration = null; // Not an STT latency measurement.
+    lastDuration = null;
     $('latency').textContent = '';
-    runSearch();
+    runSearch(found.results, selected);
+    const verdict = assess(found.results, selected);
     const ms = performance.now() - start;
+    const chosen = found.results[0];
     return {
-      matched: !!active, uncertain: !!ranked.length && !active, searchMs: ms, preview: false,
+      matched: !!active,
+      uncertain: found.results.length > 0 && !active,
+      searchMs: ms, preview: false,
       reference: $('reference').textContent,
-      confidence: $('confidence').textContent,
-      translation: active?.ko || ''
+      confidence: verdict.label + (selected !== phrase ? ' · 다른 인식 후보 사용' : ''),
+      translation: active?.ko || '',
+      alternativesChecked: found.alternativeCount
     };
   }
 };
