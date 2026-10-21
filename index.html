@@ -24,13 +24,13 @@
   <section class="panel" aria-labelledby="voice-label">
     <div class="section-header"><h2 id="voice-label"><span class="num">02</span> 영어로 검색</h2><span class="chip muted">영어 en-US</span></div>
     <div class="filter"><label for="chapter">장 선택</label><select id="chapter"><option value="all">3·4장 전체</option></select></div>
-    <button class="voice-button" type="button" id="mic"><span class="mic-symbol">🎙</span><span id="micLabel">마이크 눌러 말하기</span><span class="voice-hint" id="micHint">영어 5~10단어부터 시험하세요</span></button>
+    <button class="voice-button" type="button" id="mic"><span class="mic-symbol">🎙</span><span id="micLabel">마이크 눌러 말하기</span><span class="voice-hint" id="micHint">영어 3~4단어부터 시험하세요</span></button>
     <p id="status" role="status" aria-live="polite">먼저 번역 데이터를 불러오세요.</p>
     <div class="recognized"><div class="recognized-label">인식된 영어 <span id="latency"></span></div><p id="heard">아직 인식된 내용이 없습니다.</p></div>
     <label class="field-label" for="q">직접 입력하거나 인식 결과 수정</label>
-    <div class="search-input"><input id="q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="예: The climax of the doctrinal"><button type="button" id="clearSearch" title="입력 지우기" aria-label="입력 지우기">×</button></div>
+    <div class="search-input"><input id="q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="예: 영어 3~4단어 입력"><button type="button" id="clearSearch" title="입력 지우기" aria-label="입력 지우기">×</button></div>
   </section>
-  <section class="panel auto-panel" aria-labelledby="auto-label"><div class="section-header"><h2 id="auto-label"><span class="num">02B</span> 연속 듣기 실험</h2><span class="chip">새 기능</span></div><p class="fineprint">한 번 시작하면 영어 문장을 자동 검색합니다. 일부 단어가 잘못 인식되어도 문장 순서·음성 인식 후보를 비교하고, 판단이 모호하면 확정하지 않습니다. 아이폰 Safari에서는 음성 인식이 중단되거나 자동 재시작이 제한될 수 있습니다. 화면은 켜 둬야 합니다.</p><button type="button" class="voice-button auto-button" id="autoListen" aria-pressed="false">▶ 연속 듣기 시작</button><p id="autoStatus" role="status" aria-live="polite">개인 DB를 먼저 불러오세요.</p><p class="search-speed" id="autoSpeed">마지막 검색 속도: 측정 전</p><div class="auto-preview" id="autoPreview" hidden><div class="reference" id="autoPreviewHeading"></div><p class="korean" id="autoPreviewBody"></p></div><p class="fineprint">개인 학습 또는 음성 사용이 허용된 환경에서만 사용하세요. 주변 사람의 음성도 인식될 수 있습니다.</p></section>
+  <section class="panel auto-panel" aria-labelledby="auto-label"><div class="section-header"><h2 id="auto-label"><span class="num">02B</span> 연속 듣기 실험</h2><span class="chip">새 기능</span></div><p class="fineprint">한 번 시작하면 영어 3~4단어를 자동 검색합니다. 일부 단어가 잘못 인식되어도 문장 순서·음성 인식 후보를 비교하고, 판단이 모호하면 확정하지 않습니다. 아이폰 Safari에서는 음성 인식이 중단되거나 자동 재시작이 제한될 수 있습니다. 화면은 켜 둬야 합니다.</p><button type="button" class="voice-button auto-button" id="autoListen" aria-pressed="false">▶ 연속 듣기 시작</button><p id="autoStatus" role="status" aria-live="polite">개인 DB를 먼저 불러오세요.</p><p class="search-speed" id="autoSpeed">마지막 검색 속도: 측정 전</p><div id="autoChoices" class="alternatives" aria-label="짧은 음성검색 다른 후보"></div><div class="auto-preview" id="autoPreview" hidden><div class="reference" id="autoPreviewHeading"></div><p class="korean" id="autoPreviewBody"></p></div><p class="fineprint">개인 학습 또는 음성 사용이 허용된 환경에서만 사용하세요. 주변 사람의 음성도 인식될 수 있습니다.</p></section>
   <section class="panel answer" aria-labelledby="answer-label">
     <div class="section-header"><h2 id="answer-label"><span class="num">03</span> 찾아낸 번역문</h2><span id="confidence" class="chip muted">미검색</span></div>
     <div class="reference" id="reference">문단 위치</div>
@@ -51,9 +51,9 @@
     <p class="fineprint">같은 영어 문장을 보통 목소리·작은 목소리·속삭임으로 녹음하고, 정답 문장과 함께 개인 기기에 저장합니다. 실제 모델을 학습시키기 전 단계이며 음성을 서버로 업로드하지 않습니다.</p>
     <a class="btn btn-primary" style="display:flex;justify-content:center;align-items:center;text-decoration:none;margin-top:12px" href="./whisper-lab.html?v=7">속삭임 연구실 열기 →</a>
   </section>
-  <footer>실험용 v0.6 · EVEN G2 연결 없음 · 허용된 학습·발표 환경에서 이용하세요.</footer>
+  <footer>실험용 v0.8 · EVEN G2 연결 없음 · 허용된 학습·발표 환경에서 이용하세요.</footer>
  </main>
- <script type="module" src="app.js?v=6"></script>
- <script type="module" src="continuous.js?v=6"></script>
+ <script type="module" src="app.js?v=8"></script>
+ <script type="module" src="continuous.js?v=8"></script>
 </body>
 </html>
