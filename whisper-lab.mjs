@@ -221,7 +221,7 @@ $('download').addEventListener('click',async()=>{
     const archiveFiles=[];
     const manifest={
       format:'even-whisper-lab-v1',created_at:new Date().toISOString(),
-      notes:'Explicit opt-in recordings on user's device, no automatic upload. WAV conversion/training not yet performed.',
+      notes:"Explicit opt-in recordings on user's device, no automatic upload. WAV conversion/training not yet performed.",
       device_user_agent:navigator.userAgent,
       clips:saved.map(c=>{
         const base='audio/'+c.condition+'_'+c.chapter+'_'+String(c.promptIndex).padStart(3,'0');
