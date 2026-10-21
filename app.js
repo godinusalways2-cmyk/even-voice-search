@@ -2,6 +2,7 @@ import { search, searchSpeech, assess, context, warmSearch } from './matcher.mjs
 const $=id=>document.getElementById(id);
 let rows=[], ranked=[], active=null, recognition=null, listening=false;
 let startedAt=0, lastDuration=null, lastTranscript='', lastMatched=false, logs=[], finalReceived=false;
+let lastDiagnostics={options:'',candidates:'',confidence:''};
 const DB_NAME='even-voice-bilingual-local-v1', STORE='private-text';
 function setStatus(msg,warning=false){$('status').textContent=msg;$('status').classList.toggle('warn',warning)}
 function getStore(mode='readonly'){
@@ -89,6 +90,7 @@ function onRecognized(s,interim=false,alternatives=[]){
    runSearch();
  }
  $('heard').style.whiteSpace='pre-line';
+ lastDiagnostics={options:[s,...alternatives].join(' | '),candidates:ranked.slice(0,3).map(x=>x.row.id+':'+Math.round(x.score)).join(' | '),confidence:$('confidence').textContent};
  lastDuration=startedAt?Math.round(performance.now()-startedAt):null;
  $('latency').textContent=lastDuration!==null?(lastDuration/1000).toFixed(1)+'초':'';
  setStatus('검색 완료. 아래 번역문과 인식된 영어를 확인해 보세요.');
@@ -127,9 +129,9 @@ function refreshLogs(){
    summary.textContent=groups.map(v=>{const data=logs.filter(x=>x.volume===v);const wins=data.filter(x=>x.correct).length;return v+': '+wins+'/'+data.length+' 정답'+(data.length?' ('+Math.round(wins/data.length*100)+'%)':'')}).join(' · ');
  }
 }
-function record(correct){if(!lastTranscript && correct){setStatus('먼저 마이크로 영어를 읽어 인식 결과를 만드세요.',true);return}logs.push({timestamp:new Date().toISOString(),volume:$('volumeLabel').value,correct,seconds:lastDuration!==null?Number((lastDuration/1000).toFixed(2)):null,text:lastTranscript||'(인식 없음)',chapter:active?.chapter??'',paragraph:active?.n??''});refreshLogs();setStatus('실험 기록 저장됨. 다른 발화 조건도 시험해 보세요.')}
+function record(correct){if(!lastTranscript && correct){setStatus('먼저 마이크로 영어를 읽어 인식 결과를 만드세요.',true);return}logs.push({timestamp:new Date().toISOString(),volume:$('volumeLabel').value,correct,seconds:lastDuration!==null?Number((lastDuration/1000).toFixed(2)):null,text:lastTranscript||'(인식 없음)',options:lastDiagnostics.options,candidates:lastDiagnostics.candidates,confidence:lastDiagnostics.confidence,chapter:active?.chapter??'',paragraph:active?.n??''});refreshLogs();setStatus('실험 기록 저장됨. 다른 발화 조건도 시험해 보세요.')}
 $('recordSuccess').addEventListener('click',()=>record(true));$('recordFail').addEventListener('click',()=>record(false));$('resetLog').addEventListener('click',()=>{logs=[];refreshLogs()});
-$('exportLog').addEventListener('click',()=>{if(!logs.length){setStatus('저장할 기록이 없습니다.',true);return}const h=['timestamp','volume','correct','seconds','text','chapter','paragraph'];const csv='\ufeff'+[h.join(','),...logs.map(r=>h.map(k=>'"'+String(r[k]??'').replaceAll('"','""')+'"').join(','))].join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const a=document.createElement('a');a.href=url;a.download='voice-test-results.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),3000)});
+$('exportLog').addEventListener('click',()=>{if(!logs.length){setStatus('저장할 기록이 없습니다.',true);return}const h=['timestamp','volume','correct','seconds','text','options','candidates','confidence','chapter','paragraph'];const csv='\ufeff'+[h.join(','),...logs.map(r=>h.map(k=>'"'+String(r[k]??'').replaceAll('"','""')+'"').join(','))].join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));const a=document.createElement('a');a.href=url;a.download='voice-test-results.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),3000)});
 (async()=>{setupSpeech();try{const saved=await cachedRead();if(saved?.data)setRows(saved.data,(saved.label||'이전에 저장한 DB')+' (기기 저장본)');else if(recognition)setStatus('개인 DB 파일을 선택하거나 샘플 체험을 누르세요.')}catch(e){if(recognition)setStatus('개인 DB를 선택해 주세요. 브라우저에 저장하지 못할 수 있습니다.')}refreshLogs()})();
 
 
@@ -166,6 +168,7 @@ window.evenContinuousBridge = {
     lastDuration = null;
     $('latency').textContent = '';
     runSearch(found.results, selected);
+    lastDiagnostics={options:distinct.join(' | '),candidates:ranked.slice(0,3).map(x=>x.row.id+':'+Math.round(x.score)).join(' | '),confidence:$('confidence').textContent};
     const verdict = assess(found.results, selected);
     const ms = performance.now() - start;
     const chosen = found.results[0];
