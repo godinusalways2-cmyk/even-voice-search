@@ -7,6 +7,17 @@ const preview = byId('autoPreview');
 const previewHeading = byId('autoPreviewHeading');
 const previewBody = byId('autoPreviewBody');
 const onceButton = byId('mic');
+const choicesBox = byId('autoChoices');
+function renderChoices(choices) {
+ if(!choicesBox)return;
+ choicesBox.replaceChildren();
+ for(const candidate of (choices||[]).slice(0,3)){
+  const b=document.createElement('button');b.type='button';b.className='btn btn-muted';b.textContent=candidate.label;
+  b.addEventListener('click',()=>{const selected=window.evenContinuousBridge?.choose(candidate.id);if(!selected)return;preview.hidden=false;previewHeading.textContent=selected.reference;previewBody.textContent=selected.translation;});
+  choicesBox.append(b);
+ }
+}
+
 let recognizer = null;
 let wanted = false;
 let running = false;
@@ -58,8 +69,8 @@ function handlePhrase(phrase, alternatives = []) {
   clearPreviewTimer();
   phrase = phrase.trim();
   const wordCount = phrase.split(/\s+/).filter(Boolean).length;
-  if (wordCount < 3) {
-    show('너무 짧은 구절입니다. 영어를 5~10단어 정도 읽어보세요.');
+  if (wordCount < 2) {
+    show('너무 짧은 구절입니다. 영어를 3~4단어 정도 읽어보세요.');
     return;
   }
   const now = Date.now();
@@ -67,6 +78,7 @@ function handlePhrase(phrase, alternatives = []) {
   lastPhrase = phrase;
   lastPhraseTime = now;
   const response = window.evenContinuousBridge?.lookup(phrase, { preview: false, alternatives });
+  renderChoices(response?.choices);
   if (!response) {
     halt('검색기 연결을 찾지 못했습니다. Safari 새로고침 후 다시 실행하세요.', true);
     return;
@@ -74,7 +86,7 @@ function handlePhrase(phrase, alternatives = []) {
   preview.hidden = false;
   if (!response.matched) {
     previewHeading.textContent = response.uncertain ? '후보가 여러 개입니다' : '일치하는 문단을 찾지 못했습니다';
-    previewBody.textContent = response.uncertain ? '오른쪽 후보 대신 원문을 조금 더 길게 읽어보세요. 현재 결과는 자동 확정하지 않았습니다.' : '영어 구절을 조금 더 길게 말해보세요.';
+    previewBody.textContent = response.uncertain ? '가장 비슷한 후보를 아래에서 골라 확인하세요.' : '다른 짧은 구절로 다시 읽어보세요.';
     show('계속 듣는 중 · 다음 구절을 읽어주세요.');
     return;
   }
@@ -84,7 +96,7 @@ function handlePhrase(phrase, alternatives = []) {
   show('계속 듣는 중 · 문장이 끝날 때마다 자동 검색합니다.');
 }
 function schedulePreview(phrase) {
-  if (!wanted || phrase.split(/\s+/).filter(Boolean).length < 5) return;
+  if (!wanted || phrase.split(/\s+/).filter(Boolean).length < 3) return;
   clearPreviewTimer();
   if (phrase === previousPreview) return;
   previewTimer = setTimeout(() => {
@@ -212,6 +224,7 @@ button.addEventListener('click', () => {
   lastPhrase = '';
   lastPhraseTime = 0;
   previousPreview = '';
+  renderChoices([]);
   byId('autoSpeed').textContent = '마지막 검색 속도: 측정 전';
   paint();
   show('마이크 연결 요청 중…');
