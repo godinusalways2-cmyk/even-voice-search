@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
-import { search, assess, warmSearch, context } from '../matcher.mjs';
+import { search, searchSpeech, assess, warmSearch, context } from '../matcher.mjs';
 
 const rows = [
   { id:'c4a', chapter:'4', section:'서론', n:1, en:'The opening chapter introduces an unfamiliar journey across many different landscapes.', ko:'첫 장은 여러 낯선 풍경을 가로지르는 여정을 소개한다.' },
@@ -30,7 +30,7 @@ test('Ordered near-match beats unrelated paragraph with similar vocabulary', () 
  ];
  const result=search(choices,'An attentive traveler quietly crossed the wooden bridge before sunrise');
  assert.equal(result[0].row.id,'target');
- assert.equal(result[0].kind,'ordered'); // "old" missing from speech
+ assert.equal(result[0].kind,'fuzzy'); // "old" missing from speech
 });
 test('Duplicate exact phrase does not silently select first paragraph', () => {
  const choices=[
@@ -57,4 +57,51 @@ test('A unique exact longer quote may be presented as confirmed', () => {
 test('Completely unrelated speech does not produce arbitrary translation', () => {
  const result=search(rows,'satellite exploration computes distant planetary orbital distances');
  assert.equal(result.length,0);
+});
+
+test('Speech missing one middle word still retrieves intended pairing', () => {
+ const rows = [
+  { id:'target',chapter:'3',en:'The careful scholar compared the early manuscripts before drawing conclusions.',ko:'정답 문단' },
+  { id:'decoy',chapter:'3',en:'The careful manuscripts were compared after the scholar reached a conclusion.',ko:'오답 문단' }
+ ];
+ const results=search(rows,'The careful scholar compared early manuscripts before drawing conclusions');
+ assert.equal(results[0]?.row.id,'target');
+ assert.equal(results[0]?.kind,'fuzzy');
+});
+test('One phonetically plausible misspelling is tolerated in an English sentence', () => {
+ const rows=[
+  {id:'target',chapter:'3',en:'A surprising discovery changed the direction of the historical investigation.',ko:'정답'},
+  {id:'decoy',chapter:'3',en:'A surprising journey changed the direction of the coastal investigation.',ko:'오답'}
+ ];
+ const result=search(rows,'A surprising discovery changed the direction of the historical investigaton');
+ assert.equal(result[0]?.row.id,'target');
+});
+test('When browser supplies multiple ASR hypotheses, a more accurate alternative can win', () => {
+ const rows=[
+  {id:'target',chapter:'4',en:'The careful reader discovered a hidden manuscript beside the ancient temple.',ko:'정답'},
+  {id:'decoy',chapter:'4',en:'The careful reader discussed several manuscripts throughout the quiet afternoon.',ko:'오답'}
+ ];
+ const out=searchSpeech(rows,[
+   'The careful reader discovered a hidden message beside the ancient temple',
+   'The careful reader discovered a hidden manuscript beside the ancient temple'
+ ]);
+ assert.equal(out.results[0]?.row.id,'target');
+ assert.equal(out.selected,out.results[0].spoken);
+ assert.ok(out.alternativeCount===2);
+});
+test('Shuffled generic tokens cannot override intact ordered phrase', () => {
+ const rows=[
+  {id:'decoy',chapter:'3',en:'The scholar later read about the village. Research on the original evidence started the investigation.',ko:'오답'},
+  {id:'target',chapter:'3',en:'The scholar started the investigation of original evidence in the village.',ko:'정답'}
+ ];
+ const found=search(rows,'The scholar started the investigation of original evidence');
+ assert.equal(found[0]?.row.id,'target');
+});
+test('Weak partial matches are not presented as exact facts', () => {
+ const rows=[
+  {id:'first',chapter:'3',en:'A long summary of different kinds of academic research.',ko:'첫 번째'},
+  {id:'second',chapter:'4',en:'A long survey of different fields of academic inquiry.',ko:'두 번째'}
+ ];
+ const out=search(rows,'different academic');
+ assert.equal(assess(out,'different academic').confident,false);
 });
