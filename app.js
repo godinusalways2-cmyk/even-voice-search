@@ -75,21 +75,36 @@ function runSearch(override=null, voiceQuery=null){
    alt.append(b);
  });
 }
-function onRecognized(s,interim=false){
+function onRecognized(s,interim=false,alternatives=[]){
  $('heard').textContent=(interim?'인식 중: ':'인식 완료: ')+s;
  if(interim)return;
- lastTranscript=s;$('q').value=s;runSearch();
+ lastTranscript=s;
+ $('q').value=s;
+ if(alternatives.length){
+   const result=searchSpeech(rows,[s,...alternatives],{chapter:$('chapter').value,limit:5});
+   runSearch(result.results,result.selected||s);
+   if(result.selected && result.selected!==s)
+     $('heard').textContent='인식 완료: '+s+'\nDB와 비교한 다른 음성 후보: '+result.selected;
+ }else{
+   runSearch();
+ }
+ $('heard').style.whiteSpace='pre-line';
  lastDuration=startedAt?Math.round(performance.now()-startedAt):null;
  $('latency').textContent=lastDuration!==null?(lastDuration/1000).toFixed(1)+'초':'';
- setStatus('인식 완료. 아래 번역문이 맞는지 확인해 보세요.');
+ setStatus('검색 완료. 아래 번역문과 인식된 영어를 확인해 보세요.');
 }
 function setupSpeech(){
  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
  if(!SR){$('mic').disabled=true;setStatus('이 브라우저에서는 음성 인식이 지원되지 않습니다. 안드로이드 Chrome 또는 아이폰 Safari에서 HTTPS로 열어 보세요.',true);return}
- recognition=new SR();recognition.lang='en-US';recognition.continuous=false;recognition.interimResults=true;recognition.maxAlternatives=1;
+ recognition=new SR();recognition.lang='en-US';recognition.continuous=false;recognition.interimResults=true;recognition.maxAlternatives=3;
  recognition.onstart=()=>{listening=true;finalReceived=false;$('mic').classList.add('recording');$('micLabel').textContent='듣는 중 · 끝내려면 누르세요';$('micHint').textContent='한 번에 영어 한 문장만 읽어 보세요';setStatus('음성 듣는 중…')};
  recognition.onresult=e=>{let final='',partial='';for(let i=0;i<e.results.length;i++){const t=e.results[i][0]?.transcript||'';if(e.results[i].isFinal)final+=' '+t;else partial+=' '+t}
-  if(final.trim()){finalReceived=true;onRecognized(final.trim())}else if(partial.trim())onRecognized(partial.trim(),true);
+  if(final.trim()){
+    finalReceived=true;
+    const lastFinal=Array.from(e.results).filter(r=>r.isFinal).at(-1);
+    const alts=lastFinal?Array.from(lastFinal).map(x=>x?.transcript?.trim()).filter(Boolean).slice(1):[];
+    onRecognized(final.trim(),false,alts);
+  }else if(partial.trim())onRecognized(partial.trim(),true);
  };
  recognition.onend=()=>{listening=false;$('mic').classList.remove('recording');$('micLabel').textContent='마이크 눌러 말하기';$('micHint').textContent='영어 5~10단어부터 시험하세요';if(!finalReceived && !lastTranscript)setStatus('음성이 인식되지 않았습니다. 다시 시도해 보세요.',true)};
  recognition.onerror=e=>{setStatus(`음성 인식 오류(${e.error}). 권한·인터넷·브라우저를 확인하세요.`,true)};
