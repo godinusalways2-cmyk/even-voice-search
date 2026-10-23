@@ -1,0 +1,38 @@
+name: G2 EHPK prototype
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'g2-prototype/**'
+      - '.github/workflows/g2-ehpk.yml'
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: g2-prototype
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run build
+      - name: Generate manifest with official CLI
+        run: |
+          npx evenhub init
+          node - <<'NODE'
+          const fs=require('fs');
+          const p=JSON.parse(fs.readFileSync('app.json','utf8'));
+          p.package_id='com.godinusalways2.evenvoicesearch';
+          p.version='0.1.0';
+          fs.writeFileSync('app.json',JSON.stringify(p,null,2));
+          console.log(p);
+          NODE
+      - name: Package G2 app
+        run: npx evenhub pack app.json dist -o g2-voice-prototype.ehpk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: g2-voice-prototype
+          path: g2-prototype/g2-voice-prototype.ehpk
+          retention-days: 14
