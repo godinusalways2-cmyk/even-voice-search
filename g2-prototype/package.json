@@ -1,0 +1,16 @@
+{
+  "name": "even-g2-voice-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@evenrealities/even_hub_sdk": "latest"
+  },
+  "devDependencies": {
+    "@evenrealities/evenhub-cli": "latest",
+    "vite": "^6.3.0"
+  }
+}
