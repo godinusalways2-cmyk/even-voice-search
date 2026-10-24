@@ -9,6 +9,7 @@ This Cloudflare Worker accepts an authenticated WAV recording from the Even G2 c
 
 ```bash
 cd /workspaces/even-voice-search/asr-worker
+npm install
 npx wrangler login
 npx wrangler deploy
 ```
