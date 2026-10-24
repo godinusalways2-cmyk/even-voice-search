@@ -18,17 +18,10 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - run: npm run build
-      - name: Generate manifest with official CLI
+      - name: Prepare private mic-test manifest
         run: |
           npx evenhub init
-          node - <<'NODE'
-          const fs=require('fs');
-          const p=JSON.parse(fs.readFileSync('app.json','utf8'));
-          p.package_id='com.godinusalways2.evenvoicesearch';
-          p.version='0.1.0';
-          fs.writeFileSync('app.json',JSON.stringify(p,null,2));
-          console.log(p);
-          NODE
+          node prepare-manifest.mjs
       - name: Package G2 app
         run: npx evenhub pack app.json dist -o g2-voice-prototype.ehpk
       - uses: actions/upload-artifact@v4
