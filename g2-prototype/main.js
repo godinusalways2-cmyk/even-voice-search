@@ -8,6 +8,7 @@ const $ = (id) => document.getElementById(id);
 const STORAGE_DB = 'g2-voice-personal-corpus-v1';
 const STORAGE_ROWS = 'pairs';
 const PCM_LIMIT_MS = 10000;
+const DEFAULT_STT_ENDPOINT = 'https://g2-voice-stt.g2voice-godinusalways2-2026.workers.dev';
 let bridge, unsubscribe, recording = false, busy = false, stopTimer;
 let audioChunks = [], audioBytes = 0, packetCount = 0, rows = [];
 let results = [], chosen = 0, lastEnglish = '';
@@ -323,6 +324,22 @@ $('record').addEventListener('click', () => { void startRecording(); });
 $('lensPrev').addEventListener('click', () => changeLensPage(-1));
 $('lensNext').addEventListener('click', () => changeLensPage(1));
 $('saveSettings').addEventListener('click', saveSettings);
+$('pasteToken').addEventListener('click', async () => {
+  try {
+    if (!navigator.clipboard?.readText) throw new Error('이 환경에서는 클립보드 읽기를 지원하지 않습니다.');
+    const value = (await navigator.clipboard.readText()).trim();
+    if (!value) throw new Error('클립보드가 비어 있습니다.');
+    $('accessToken').value = value;
+    setStatus('접근 토큰을 입력했습니다. 연결 설정 저장을 눌러주세요.');
+  } catch (error) {
+    setStatus('자동 붙여넣기가 제한됐습니다. 입력칸을 길게 눌러 붙여넣으세요. ' + (error?.message || ''), true);
+  }
+});
+$('toggleToken').addEventListener('click', () => {
+  const visible = $('accessToken').type === 'password';
+  $('accessToken').type = visible ? 'text' : 'password';
+  $('toggleToken').textContent = visible ? '토큰 숨기기' : '토큰 표시';
+});
 $('lensCheck').addEventListener('click', () => { void glasses('G2 렌즈 연결 성공\n영한 검색기 v0.2.1'); });
 $('loadSample').addEventListener('click', () => {
   loadRows(samplePairs, '공개 테스트 자료');
@@ -366,9 +383,9 @@ window.addEventListener('pagehide', () => {
   unsubscribe?.();
 });
 try {
-  $('endpoint').value = sessionStorage.getItem('g2_stt_endpoint') || '';
+  $('endpoint').value = sessionStorage.getItem('g2_stt_endpoint') || DEFAULT_STT_ENDPOINT;
   $('accessToken').value = sessionStorage.getItem('g2_stt_access_token') || '';
-} catch { /* a restrictive WebView may disable session storage */ }
+} catch { $('endpoint').value = DEFAULT_STT_ENDPOINT; /* a restrictive WebView may disable session storage */ }
 readDb().then(saved => {
   if (saved?.rows) loadRows(saved.rows, (saved.label || '개인 자료') + ' (로컬 복원)');
 }).catch(() => { /* private mode may not support IndexedDB */ });
