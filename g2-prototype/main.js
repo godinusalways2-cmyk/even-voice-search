@@ -11,6 +11,7 @@ const PCM_LIMIT_MS = 10000;
 let bridge, unsubscribe, recording = false, busy = false, stopTimer;
 let audioChunks = [], audioBytes = 0, packetCount = 0, rows = [];
 let results = [], chosen = 0, lastEnglish = '';
+let lensPages = [], lensPageIndex = 0, lensHeader = '', lensUpdate = Promise.resolve();
 
 function setStatus(message, error = false) {
   $('status').textContent = message;
@@ -22,7 +23,7 @@ function glassesPage(content) {
     containerTotalNum: 1,
     textObject: [{
       xPosition: 0, yPosition: 0, width: 576, height: 288,
-      containerID: 1, containerName: 'translation',
+      containerID: 1, containerName: 'translation', borderWidth: 2,
       content, isEventCapture: 1,
     }],
   };
@@ -34,9 +35,47 @@ async function glasses(content) {
 function preview(s, limit = 120) {
   return String(s || '').length > limit ? String(s).slice(0, limit - 1) + '…' : String(s || '');
 }
+function paginateKorean(text, maxChars = 96) {
+  const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ');
+  const pages = [];
+  let page = '';
+  for (const word of words) {
+    if (!word) continue;
+    if (page && (page.length + word.length + 1 > maxChars)) {
+      pages.push(page);
+      page = '';
+    }
+    if (word.length > maxChars) {
+      if (page) { pages.push(page); page = ''; }
+      for (let i = 0; i < word.length; i += maxChars) pages.push(word.slice(i, i + maxChars));
+    } else {
+      page += (page ? ' ' : '') + word;
+    }
+  }
+  if (page) pages.push(page);
+  return pages.length ? pages : ['번역 없음'];
+}
+function renderLensPage() {
+  if (!lensPages.length) return;
+  const content = lensHeader + ' · ' + (lensPageIndex + 1) + '/' + lensPages.length +
+    '\n' + lensPages[lensPageIndex];
+  $('lensPagination').textContent = '렌즈 ' + (lensPageIndex + 1) + '/' + lensPages.length + '페이지';
+  $('lensPrev').disabled = lensPageIndex === 0;
+  $('lensNext').disabled = lensPageIndex === lensPages.length - 1;
+  lensUpdate = lensUpdate.catch(() => {}).then(() => glasses(content));
+}
+function changeLensPage(delta) {
+  if (!lensPages.length || recording) return;
+  const next = Math.max(0, Math.min(lensPages.length - 1, lensPageIndex + delta));
+  if (next === lensPageIndex) return;
+  lensPageIndex = next;
+  renderLensPage();
+}
 function outputLens(row, label) {
-  const ref = row.chapter + '장 · 문단 ' + row.n;
-  void glasses(label + '\n' + ref + '\n' + preview(row.ko, 125));
+  lensHeader = row.chapter + '장 #' + row.n;
+  lensPages = paginateKorean(row.ko);
+  lensPageIndex = 0;
+  renderLensPage();
 }
 function updateMicStats() {
   $('micStats').textContent = '마이크 수신: ' + packetCount + '패킷 · ' +
@@ -184,6 +223,11 @@ async function connectGlasses() {
     bridge = await waitForEvenAppBridge();
     await bridge.createStartUpPageContainer(glassesPage('G2 영한검색\n음성 인식 준비'));
     unsubscribe = bridge.onEvenHubEvent(event => {
+      const gesture = event.textEvent ?? event.listEvent;
+      if (!recording && !busy && lensPages.length && gesture) {
+        if (gesture.eventType === 2) changeLensPage(1);
+        else if (gesture.eventType === 1) changeLensPage(-1);
+      }
       if (!recording || !event.audioEvent?.audioPcm) return;
       const chunk = event.audioEvent.audioPcm;
       const array = chunk instanceof Uint8Array ? chunk : Uint8Array.from(chunk);
@@ -276,8 +320,10 @@ async function startRecording() {
 }
 
 $('record').addEventListener('click', () => { void startRecording(); });
+$('lensPrev').addEventListener('click', () => changeLensPage(-1));
+$('lensNext').addEventListener('click', () => changeLensPage(1));
 $('saveSettings').addEventListener('click', saveSettings);
-$('lensCheck').addEventListener('click', () => { void glasses('G2 렌즈 연결 성공\n영한 검색기 v0.2.0'); });
+$('lensCheck').addEventListener('click', () => { void glasses('G2 렌즈 연결 성공\n영한 검색기 v0.2.1'); });
 $('loadSample').addEventListener('click', () => {
   loadRows(samplePairs, '공개 테스트 자료');
   setStatus('샘플 문단 3개를 불러왔습니다. 원문을 입력해 검색해보세요.');
