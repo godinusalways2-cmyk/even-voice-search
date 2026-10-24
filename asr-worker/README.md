@@ -10,11 +10,11 @@ This Cloudflare Worker accepts an authenticated WAV recording from the Even G2 c
 ```bash
 cd /workspaces/even-voice-search/asr-worker
 npm install
-npx wrangler login
+npx wrangler login --device --browser=false
 npx wrangler deploy
 ```
 
-Follow Wrangler login instructions in your own browser. On successful deployment, copy the `https://...workers.dev` URL. This is a public endpoint URL, **not** a credential.
+Codespaces is remote, so Wrangler's **device login** avoids inaccessible localhost redirects. Open the verification URL printed in the terminal, enter the short verification code, and approve Cloudflare access in your own browser. The code expires after approximately five minutes; rerun the command if it expires. On successful deployment, copy the `https://...workers.dev` URL. This is a public endpoint URL, **not** a credential.
 
 3. Generate a cryptographically random shared token, copy it *privately* and keep it out of chat, files and GitHub:
 
