@@ -1,42 +1,54 @@
-# G2 private transcription proxy
+# G2 private transcription proxy (Cloudflare Workers AI)
 
-This Cloudflare Worker accepts an authenticated WAV recording from the Even G2 companion app and forwards **only the audio** to the OpenAI `gpt-transcribe` file-transcription API. It returns the English transcription as JSON. It does not receive, store, or index the user's private English/Korean study corpus.
+This Cloudflare Worker accepts an authenticated WAV recording from the Even G2 companion app and uses Cloudflare's own hosted **Whisper-large-v3-turbo** speech recognition service. It returns the English transcription as JSON. **There is no OpenAI API key or OpenAI billing account to configure.** Only audio is sent to Cloudflare; the private English/Korean paired corpus remains in the G2 companion app's local storage.
 
-## Required secrets
+## Configure
 
-Do **not** commit any keys, passwords, or personal corpus files. Set these in Cloudflare, not in this repository:
-
-- `OPENAI_API_KEY`: project-scoped OpenAI API key, with a small spending limit.
-- `ACCESS_TOKEN`: a private random token at least 32 characters long, generated with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
-
-## Deploy from GitHub Codespaces (after creating a Cloudflare account)
+1. Create or sign in to a Cloudflare account (Cloudflare Workers + Workers AI free tier).
+2. In GitHub Codespaces terminal run:
 
 ```bash
 cd /workspaces/even-voice-search/asr-worker
 npx wrangler login
 npx wrangler deploy
-npx wrangler secret put OPENAI_API_KEY
+```
+
+Follow Wrangler login instructions in your own browser. On successful deployment, copy the `https://...workers.dev` URL. This is a public endpoint URL, **not** a credential.
+
+3. Generate a cryptographically random shared token, copy it *privately* and keep it out of chat, files and GitHub:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+4. Put that same token in your Worker through Wrangler's **interactive secret prompt**:
+
+```bash
 npx wrangler secret put ACCESS_TOKEN
 ```
 
-Enter secrets into Wrangler's **masked, interactive** prompt. Never paste secrets into chat, git files, commit messages or screenshots. A worker deployment URL ends with `.workers.dev`.
+**Do not commit ACCESS_TOKEN or paste it into this conversation.** The secret must be 32+ characters.
 
-Private endpoint: `POST https://YOUR-WORKER.workers.dev/transcribe`, `Authorization: Bearer <ACCESS_TOKEN>`, `Content-Type: audio/wav`. Responses are `{"text":"..."}`.
+5. On the G2 app settings screen, enter the Worker URL (without `/transcribe`) and the same ACCESS_TOKEN. The token is held only in sessionStorage.
 
-## Manifest network permission
+## Update G2 app manifest
 
-The Even Hub manifest **must** whitelist the exact Worker origin. Because the origin is not known until deployment, run:
+The Even Hub manifest requires an exact network origin. After confirming your `workers.dev` URL, run:
 
 ```bash
 cd /workspaces/even-voice-search/g2-prototype
 npm run build
 G2_STT_ORIGIN=https://YOUR-WORKER.workers.dev node prepare-manifest.mjs
 npx evenhub pack app.json dist -o g2-stt-v020.ehpk
-npx evenhub upload g2-stt-v020.ehpk -m "G2 speech-to-text and local bilingual matching"
+npx evenhub upload g2-stt-v020.ehpk -m "G2 Cloudflare Whisper transcription and local bilingual matching"
 ```
 
-Replace `YOUR-WORKER` with the verified Cloudflare URL. Without `G2_STT_ORIGIN`, the manifest deliberately omits network permission, so recording can be tested without permitting outbound audio transfer.
+Replace the placeholder with the actual Cloudflare Worker origin. Without the origin, app packaging is deliberately **offline-only** and network permission is omitted. `npm run build` can be done before Worker registration.
 
-## Safety and cost
+## Security and quota
 
-Only the user-started, bounded English microphone clip is transmitted. Worker replies include no-store headers. This design does not add persistence or request logging, but the transcription provider processes the audio under its own terms. The authentication token restricts access; never publish it. CORS alone is **not** authentication. Configure an OpenAI project spending limit and optionally Cloudflare rate limits. ChatGPT Plus does not provide an OpenAI API balance.
+Only the short, user-started English speech recording is transmitted to Cloudflare. The Worker performs no intentional storage and sets `Cache-Control: no-store`, but Cloudflare processes data according to its own service terms. Worker authentication requires the random token; CORS headers alone are not an authentication mechanism. Cloudflare Workers AI currently has a limited daily free allocation; free requests may fail when that is exhausted. Verify the current rate and account plan before enabling paid services. Revoke or rotate ACCESS_TOKEN if exposed.
+
+## Self-test
+
+Public status endpoint: `GET https://YOUR-WORKER.workers.dev/health` returns `{"ok":true,"configured":true}` when ready. Transcription endpoint accepts `POST /transcribe`, WAV s16le 16kHz mono, with `Authorization: Bearer <ACCESS_TOKEN>` and responds `{"text":"..."}`.
