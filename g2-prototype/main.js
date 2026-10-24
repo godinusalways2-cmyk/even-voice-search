@@ -185,7 +185,6 @@ async function connectGlasses() {
     await bridge.createStartUpPageContainer(glassesPage('G2 영한검색\n음성 인식 준비'));
     unsubscribe = bridge.onEvenHubEvent(event => {
       if (!recording || !event.audioEvent?.audioPcm) return;
-      if (event.audioEvent.source && event.audioEvent.source !== AudioInputSource.Glasses) return;
       const chunk = event.audioEvent.audioPcm;
       const array = chunk instanceof Uint8Array ? chunk : Uint8Array.from(chunk);
       if (audioBytes + array.byteLength > MAX_AUDIO_BYTES) return;
