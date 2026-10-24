@@ -19,10 +19,15 @@
     #heard,#englishOriginal{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
     .pill{border-radius:99px;background:#edf3f7;padding:5px 10px;display:inline-block;font-size:12px}
     details summary{cursor:pointer;font-weight:600}small{color:#657080}
+    .server-field{display:block;width:100%;min-height:64px!important;font-size:16px!important;padding:18px 14px!important;border:2px solid #8393a8!important;border-radius:12px!important;touch-action:manipulation;-webkit-user-select:text;user-select:text}
+    .server-field:focus{outline:3px solid #3777c5;outline-offset:2px}
+    .server-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .server-actions button{min-height:52px;flex:1;min-width:125px}
+    #serverHelp{font-size:14px;line-height:1.5}
   </style>
 </head>
 <body>
-  <span class="pill">개인 G2 앱 · v0.2.1</span>
+  <span class="pill">개인 G2 앱 · v0.2.2</span>
   <h1>G2 영한 문단 검색</h1>
   <p class="muted">G2 음성 → 영어 인식 → 기기 내 문단 검색 → 렌즈 표시</p>
   <section class="panel">
@@ -62,11 +67,13 @@
   </section>
   <section class="panel">
     <h2>4. 음성 인식 서버 설정</h2>
-    <p class="muted">개인 Cloudflare Worker(Whisper AI) 서버를 연결해야 영어 받아쓰기가 동작합니다. 접근 토큰은 이번 실행 세션에만 저장되며 GitHub에 저장되지 않습니다.</p>
+    <p class="muted">개인 Cloudflare Worker(Whisper AI) 서버를 연결해야 영어 받아쓰기가 동작합니다. 서버 주소는 자동으로 입력됩니다. 개인 접근 토큰은 직접 입력하거나 붙여 넣으세요. 토큰은 GitHub에 저장되지 않습니다.</p>
     <label for="endpoint">나의 STT 서버 주소 (HTTPS)</label>
-    <input id="endpoint" type="url" placeholder="https://내-서버.계정.workers.dev" autocomplete="off">
+    <input class="server-field" id="endpoint" type="url" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://내-서버.계정.workers.dev" autocomplete="url">
     <label for="accessToken">개인 접근 토큰 (32자 이상)</label>
-    <input id="accessToken" type="password" placeholder="비공개 접근 토큰" autocomplete="off">
+    <input class="server-field" id="accessToken" type="password" autocapitalize="off" spellcheck="false" placeholder="여기를 눌러 토큰 붙여넣기" autocomplete="off">
+    <div class="server-actions"><button type="button" id="pasteToken">클립보드에서 토큰 붙여넣기</button><button type="button" id="toggleToken">토큰 표시</button></div>
+    <p id="serverHelp" class="muted">토큰 입력칸을 누르기 어려우면 ‘클립보드에서 토큰 붙여넣기’를 사용하세요. iOS에서 클립보드 권한을 요청할 수 있습니다.</p>
     <button id="saveSettings">연결 설정 저장</button>
     <p class="muted">서버 주소가 Even Hub 앱의 네트워크 허용 목록에 등록돼 있어야 합니다. API 키는 이 화면에 입력하지 마세요.</p>
   </section>
