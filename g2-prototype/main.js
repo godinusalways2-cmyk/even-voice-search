@@ -7,6 +7,7 @@ import samplePairs from '../sample_pairs.json';
 const $ = (id) => document.getElementById(id);
 const STORAGE_DB = 'g2-voice-personal-corpus-v1';
 const STORAGE_ROWS = 'pairs';
+const STORAGE_BACKUP = 'g2_personal_corpus_backup_v1';
 const PCM_LIMIT_MS = 10000;
 const DEFAULT_STT_ENDPOINT = 'https://g2-voice-stt.g2voice-godinusalways2-2026.workers.dev';
 let bridge, unsubscribe, recording = false, busy = false, stopTimer;
@@ -124,6 +125,25 @@ async function writeDb(value) {
       tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
     };
   });
+}
+function writeBackup(value) {
+  try {
+    localStorage.setItem(STORAGE_BACKUP, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+function readBackup() {
+  try {
+    const raw = localStorage.getItem(STORAGE_BACKUP);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function clearBackup() {
+  try { localStorage.removeItem(STORAGE_BACKUP); } catch { /* storage unavailable */ }
 }
 async function clearDb() {
   return new Promise((resolve, reject) => {
@@ -352,9 +372,17 @@ $('database').addEventListener('change', async e => {
   try {
     const input = JSON.parse(await file.text());
     loadRows(input, file.name);
-    try { await writeDb({ rows, label: file.name }); }
-    catch { setStatus('DB를 불러왔지만 저장은 지원되지 않습니다. 다음 실행 시 재선택해 주세요.', true); return; }
-    setStatus('개인 DB가 이 앱의 로컬 저장 공간에 보관됐습니다. 서버로 전송하지 않았습니다.');
+    const saved = { rows, label: file.name };
+    let indexedSaved = false;
+    try { await writeDb(saved); indexedSaved = true; } catch { /* use backup */ }
+    const backupSaved = writeBackup(saved);
+    if (!indexedSaved && !backupSaved) {
+      setStatus('DB를 불러왔지만 기기 저장이 제한됩니다. 앱 재실행 시 파일을 다시 선택해야 합니다.', true);
+      return;
+    }
+    setStatus('개인 DB 로컬 저장 완료 (' + (indexedSaved ? 'IndexedDB' : '') +
+      (indexedSaved && backupSaved ? ' + ' : '') + (backupSaved ? '백업' : '') +
+      '). 앱 재실행 시 유지되는지 확인해 주세요.');
   } catch (error) {
     setStatus('DB 불러오기 실패: ' + error.message, true);
   }
@@ -362,6 +390,7 @@ $('database').addEventListener('change', async e => {
 $('forgetDb').addEventListener('click', async () => {
   try {
     await clearDb();
+    clearBackup();
     rows = [];
     results = [];
     $('choices').replaceChildren();
@@ -386,7 +415,21 @@ try {
   $('endpoint').value = sessionStorage.getItem('g2_stt_endpoint') || DEFAULT_STT_ENDPOINT;
   $('accessToken').value = sessionStorage.getItem('g2_stt_access_token') || '';
 } catch { $('endpoint').value = DEFAULT_STT_ENDPOINT; /* a restrictive WebView may disable session storage */ }
-readDb().then(saved => {
-  if (saved?.rows) loadRows(saved.rows, (saved.label || '개인 자료') + ' (로컬 복원)');
-}).catch(() => { /* private mode may not support IndexedDB */ });
+readDb().catch(() => null).then(saved => {
+  let source = 'IndexedDB';
+  if (!saved?.rows?.length) {
+    saved = readBackup();
+    source = '로컬 백업';
+  }
+  if (saved?.rows?.length) {
+    try {
+      loadRows(saved.rows, (saved.label || '개인 자료') + ' (' + source + ' 복원)');
+      setStatus('개인 DB ' + rows.length.toLocaleString('ko-KR') + '개 문단 자동 복원 완료 (' + source + ').');
+    } catch (error) {
+      setStatus('저장된 DB 복원 실패: ' + error.message + '. JSON 파일을 다시 선택해 주세요.', true);
+    }
+  } else {
+    setStatus('저장된 개인 DB를 찾지 못했습니다. 앱의 저장 공간이 초기화되었을 수 있습니다. JSON 파일을 선택해 주세요.', true);
+  }
+});
 connectGlasses();
