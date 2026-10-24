@@ -1,0 +1,23 @@
+# Generated files and sensitive local configuration
+node_modules/
+dist/
+*.ehpk
+*.log
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+**/.env
+**/.env.*
+**/.dev.vars
+**/.dev.vars.*
+g2-prototype/app.json
+
+# Never store personal English/Korean study data in this public repo.
+private/
+personal/
+secrets/
+*private*corpus*.json
+*personal*pairs*.json
+*personal*corpus*.json
+*private*pairs*.json
